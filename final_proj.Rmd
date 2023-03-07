@@ -1,0 +1,142 @@
+---
+title: "info 248 final proj"
+author: "Victor Chen"
+date: "4/27/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+SETUP
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+salary.df <- read.csv("salary.csv")
+salary.df <- salary.df[salary.df$hours.per.week == 40,]
+
+```
+
+
+PLOTS
+```{r}
+
+salary.df %>% ggplot(aes(x = reorder(education, education.num))) +
+  geom_bar() +
+  coord_flip() +
+  ggtitle("Number of People by Education Level") +
+  xlab("Education Level")
+
+salary.df %>% ggplot(aes(x = marital.status)) +
+  geom_bar() +
+  coord_flip() +
+  ggtitle("Number of People by Marital Status") +
+  xlab("Marital Status")
+
+salary.df %>% ggplot(aes(x=reorder(education, education.num), y=..count..)) +
+  geom_bar() +
+  facet_wrap(vars(cols=salary)) +
+  ggtitle("Education Level vs. Salary") +
+  coord_flip() +
+  xlab("Education Level")
+
+salary.df %>% ggplot(aes(x=reorder(education, education.num), y=..count.., color=marital.status)) +
+  geom_bar() +
+  facet_wrap(vars(cols=salary)) +
+  coord_flip() +
+  ggtitle("Education Level and Marital Status vs. Salary") +
+  xlab("Education Level") +
+  labs(colour = "Marital Status")
+
+```
+
+LOGISTIC REGRESSION
+```{r}
+
+library(ROCR)
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+
+levels(salary.df$salary) <- c(0,1)
+salary.df$marital.status <- factor(salary.df$marital.status)
+salary.df$salary <- factor(salary.df$salary)
+salary.df$education <- factor(salary.df$education)
+
+mod<-glm(salary~education+marital.status,data=salary.df, family=binomial(logit))
+
+summary(mod)
+
+tab_model(mod, title = 'Logistic Regression on Education Level and Marital Status vs. Salary')
+
+```
+INTERP: 
+
+make interp off summary
+
+EVAL OF MODEL:
+```{r}
+
+# using a variable to reference the dataset
+data.df<- salary.df
+# the index of the predicted column
+label.index<-15
+
+data.size<-nrow(data.df)
+train.size<-0.80
+
+RNGversion("4.1.2")
+set.seed(12345)
+
+train.row.nums<-sample(1:data.size, data.size*train.size, replace=FALSE)
+train.data<-subset(data.df[train.row.nums,])
+
+test.row.nums<-setdiff(1:data.size,train.row.nums)
+test.data<-subset(data.df[test.row.nums,])
+# a vector of the actual outcomes to be compared to the model's predictions
+true.labels<-test.data[,label.index]
+
+mod.pred <- glm(salary~education+marital.status, family = binomial, data=train.data)
+summary(mod.pred)
+
+model.probs<-predict(mod.pred, newdata=test.data, type="response")
+
+class.threshold<-0.5
+pred.labels<-rep("0",length(true.labels))
+pred.labels[model.probs>class.threshold]="1"
+
+# misc rate
+misc.rate <- 494/3044
+cat("Misclassification Rate: ", misc.rate)
+
+# confusion matrix
+conf.matrix <- table(true.labels, pred.labels) 
+conf.matrix
+
+```
+
+ROC CURVE: plot is true positive (y) vs false positive (x), 3 variations of how good classifier should be, will have 1 linear, line for completely random classifier, middle line for current classifier, third line for classifier under perfect conditions (usually bias), look for where line starts flattening out (tp rate).
+
+```{r}
+
+# using model predictions from the previous call to predict
+pred<-prediction(model.probs,true.labels)
+# tpr- true positive rate, frp- false positive rate
+perf<-performance(pred,'tpr','fpr')
+
+plot(perf,main="ROC")
+abline(0,1,lty=3) #Adds the x=y line, representing a random 50-50 prediction
+
+perf.auc<- performance(pred,'auc',fpr.stop=1)
+auc<-slot(perf.auc,"y.values")[[1]]
+
+
+cat("Area Under Curve: ", auc)
+
+```
+

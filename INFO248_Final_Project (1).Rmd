@@ -1,0 +1,54 @@
+---
+title: "248 Project Random Forest"
+author: "Tristan Duerk"
+date: "5/10/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 
+```{r salary}
+library(party)
+library(rpart)
+library(tree)
+library(randomForest)
+library(gbm)
+
+salary.df <- read.csv("salary.csv")
+
+salary.df$salary <- factor(salary.df$salary)
+salary.df$education <- factor(salary.df$education)
+salary.df$marital.status <- factor(salary.df$marital.status)
+
+levels(salary.df$salary) <- c(0,1)
+
+seed.val<-12345
+
+data.size<-nrow(salary.df)
+train.rows<-sample(1:data.size, data.size/2)
+train.data<-salary.df[train.rows,]
+test.data<-salary.df[-train.rows,]
+true.vals<-test.data[,15] #predict column 15
+
+
+summary(salary.df)
+
+set.seed(seed.val)
+bag.salary<-randomForest(salary ~ education + marital.status, data=train.data, mtry=2, importance=TRUE)
+bag.pred<-predict(bag.salary, newdata=test.data)
+
+summary(bag.pred)
+
+conf.matrix <- table(true.vals, bag.pred) 
+conf.matrix
+
+misclassification.rate <- (631 + 2289) / (11696 + 631 + 2289 + 1665) #values drawn from the confusion matrix
+misclassification.rate
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
